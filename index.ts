@@ -28,7 +28,7 @@ export default {
 		if (isG) {
 			targetUrl = `https://gitignore.io/api/${cleanPath}${url.search}`;
 		} else {
-			targetUrl = `https://markdown.new/dockerignore.com/dockerignores/${cleanPath}${url.search}`;
+			targetUrl = `https://github.com/ronald2wing/.dockerignore/raw/refs/heads/master/${cleanPath}${url.search}`;
 		}
 
 		try {
