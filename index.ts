@@ -1,28 +1,36 @@
 
-function findTemplateLink(target: string, text: string): string {
-	const cleanTarget = target.trim().toLowerCase();
+async function safeFetch(url: string, options?: RequestInit): Promise<Response> {
+	const response = await fetch(url, options);
+	if (!response.ok) {
+		throw new Error(`Upstream returned error: HTTP ${response.status} ${response.statusText}`);
+	}
+	return response;
+}
+
+function findTemplateLinks(targets: string[], sitemapText: string): string[] {
 	const locRegex = /<loc>(https?:\/\/[^<]+)<\/loc>/gi;
+	const urls: string[] = [];
 	let match;
-	const matches: string[] = [];
 
-	while ((match = locRegex.exec(text)) !== null) {
-		const url = match[1];
-		const lastSegment = url.split('/').pop() || '';
+	while ((match = locRegex.exec(sitemapText)) !== null) {
+		urls.push(match[1]);
+	}
 
-		if (lastSegment.toLowerCase().includes(cleanTarget)) {
-			matches.push(url);
+	return targets.map(target => {
+		const cleanTarget = target.trim().toLowerCase();
+		const matches = urls.filter(url => {
+			const lastSegment = url.split('/').pop() || '';
+			return lastSegment.toLowerCase().includes(cleanTarget);
+		});
 
-			if (matches.length > 1) {
-				throw new Error(`Ambiguous template name '${target}': multiple matches found in sitemap.`);
-			}
+		if (matches.length > 1) {
+			throw new Error(`Ambiguous template name '${target}': multiple matches found in sitemap.`);
 		}
-	}
-
-	if (matches.length === 1) {
+		if (matches.length === 0) {
+			throw new Error(`Template '${target}' not found in sitemap.`);
+		}
 		return matches[0];
-	}
-
-	throw new Error(`Template '${target}' not found in sitemap.`);
+	});
 }
 
 async function extractTemplateText(link: string | undefined): Promise<string> {
@@ -30,10 +38,7 @@ async function extractTemplateText(link: string | undefined): Promise<string> {
 		throw new Error("Cannot extract template: link is undefined.");
 	}
 
-	const response = await fetch(link);
-	if (!response.ok) {
-		throw new Error(`Failed to fetch template from ${link}: HTTP ${response.status} ${response.statusText}`);
-	}
+	const response = await safeFetch(link);
 
 	let accumulatedText = '';
 
@@ -79,18 +84,15 @@ async function fetchWorker(request: Request): Promise<Response> {
 	}
 
 	if (isG) {
-		return await fetch(`https://gitignore.io/api/${cleanPath}${url.search}`);
+		return await safeFetch(`https://gitignore.io/api/${cleanPath}${url.search}`);
 	}
 
 	if (isD) {
-		const sitemapRawData = await fetch(`https://dockerignore.com/storage/sitemap-dockerignores-0.xml`);
+		const sitemapRawData = await safeFetch(`https://dockerignore.com/storage/sitemap-dockerignores-0.xml`);
 		const sitemapText = await sitemapRawData.text();
 
 		const targetWords = cleanPath.split(',').map(t => t.trim().toLowerCase());
-
-		const links = targetWords
-			.map(targetWord => findTemplateLink(targetWord, sitemapText))
-			.filter(Boolean);
+		const links = findTemplateLinks(targetWords, sitemapText);
 
 		const templatePromises = links.map(link => extractTemplateText(link));
 		const templates = await Promise.all(templatePromises);
@@ -101,6 +103,7 @@ async function fetchWorker(request: Request): Promise<Response> {
 
 	return Response.json({ status: "ok" });
 }
+
 
 export default {
 	async fetch(request: Request): Promise<Response> {
