@@ -1,12 +1,3 @@
-async function get(url: string): Promise<Response> {
-	try {
-		return await fetch(url);
-	} catch (error) {
-		return new Response(`Error fetching upstream: ${error.message}`, {
-			status: 502
-		});
-	}
-}
 
 function findTemplateLink(target: string, text: string): string {
 	const cleanTarget = target.trim().toLowerCase();
@@ -39,7 +30,7 @@ async function extractTemplateText(link: string | undefined): Promise<string> {
 		throw new Error("Cannot extract template: link is undefined.");
 	}
 
-	const response = await get(link);
+	const response = await fetch(link);
 	if (!response.ok) {
 		throw new Error(`Failed to fetch template from ${link}: HTTP ${response.status} ${response.statusText}`);
 	}
@@ -88,11 +79,11 @@ async function fetchWorker(request: Request): Promise<Response> {
 	}
 
 	if (isG) {
-		return await get(`https://gitignore.io/api/${cleanPath}${url.search}`);
+		return await fetch(`https://gitignore.io/api/${cleanPath}${url.search}`);
 	}
 
 	if (isD) {
-		const sitemapRawData = await get(`https://dockerignore.com/storage/sitemap-dockerignores-0.xml`);
+		const sitemapRawData = await fetch(`https://dockerignore.com/storage/sitemap-dockerignores-0.xml`);
 		const sitemapText = await sitemapRawData.text();
 
 		const targetWords = cleanPath.split(',').map(t => t.trim().toLowerCase());
